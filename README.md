@@ -6,8 +6,8 @@
 
 Данное приложение не позволяет зарегистрироваться в систему извне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю для тех пользователей, которых добавил администратор. Предусмотрено восстановление доступа (сброс пароля) по email и через панель администратора, если был забыт логин или потерян доступ к нему.
 ___
-[![CI](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/ci.yml/badge.svg)](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/ci.yml)
-[![E2E](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/e2e.yml/badge.svg)](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/e2e.yml)
+[![CI](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/ci.yml/badge.svg)](https://github.com/Verchovskii23k/Project_review/actions/workflows/ci.yml)
+[![E2E](https://github.com/Verchovskii23k/PP-NextJS/actions/workflows/e2e.yml/badge.svg)](https://github.com/Verchovskii23k/Project_review/actions/workflows/e2e.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ___
