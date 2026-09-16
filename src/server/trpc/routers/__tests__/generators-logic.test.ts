@@ -1,3 +1,5 @@
+import MockDate from 'mockdate';
+import { afterEach } from 'vitest';
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/db";
 import {
@@ -28,6 +30,7 @@ let profId: number;
 
 // Инициализация перед КАЖДЫМ тестом – полная изоляция
 beforeEach(async () => {
+  MockDate.set('2025-09-15T00:00:00Z');
   await clearAllTestData();
 
   // 1. Институт с universityCode = 1
@@ -144,7 +147,9 @@ beforeEach(async () => {
   // 15. Создаём caller для каждого теста
   caller = await createTestCaller({ id: 1, role: "admin" });
 });
-
+afterEach(() => {
+  MockDate.reset();
+});
 // ------------------- Тесты -------------------
 describe("generateGroups logic", () => {
   it("создаёт активные группы и привязывает студентов", async () => {

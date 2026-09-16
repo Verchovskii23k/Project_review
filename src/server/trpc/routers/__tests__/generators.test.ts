@@ -1,15 +1,21 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import MockDate from 'mockdate';
+import { afterAll } from 'vitest';
 import { clearDatabase, seedTestData } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
 beforeAll(async () => {
+  MockDate.set('2025-09-15T00:00:00Z');
   await clearDatabase();
   await seedTestData();
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
+afterAll(() => {
+  MockDate.reset();
+});
 describe('generators (ordered)', () => {
   it('1. создаёт учебные группы', async () => {
     const res = await caller.generations.generateGroups();
@@ -42,13 +48,16 @@ describe('generators (ordered)', () => {
 describe('generators order validation', () => {
   let caller2: Awaited<ReturnType<typeof createTestCaller>>;
 
-  beforeAll(async () => {
-    // полностью очищаем базу и наполняем справочниками (без генерации групп/юнитов)
-    await clearDatabase();
-    await seedTestData();
-    caller2 = await createTestCaller({ id: 1, role: 'admin' });
-  });
+beforeAll(async () => {
+  MockDate.set('2025-09-15T00:00:00Z');
+  await clearDatabase();
+  await seedTestData();
+  caller2 = await createTestCaller({ id: 1, role: 'admin' });
+});
 
+afterAll(() => {
+  MockDate.reset();
+});
   it('выбрасывает ошибку, если generateUnits вызван до generateGroups', async () => {
     // групп ещё нет, роутер должен выбросить ошибку
     await expect(caller2.generations.generateUnits()).rejects.toThrow();
