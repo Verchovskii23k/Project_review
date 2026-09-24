@@ -65,7 +65,7 @@ export const lessonClassroomsRouter = router({
         classroomId: lessonClassrooms.classroomId,
         isActive: lessonClassrooms.isActive,
         lessonDisplay: sql<string>`${units.code} || '-' || ${lessonTypes.abbreviation} || '-' || ${disciplines.abbreviation} || '-' || ${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'  `.as('lessonDisplay'),
-        classroomDisplay: sql<string>` ${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric} `.as('classroomDisplay'),
+        classroomDisplay: sql<string>` ${buildings.number} || '_' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.capacity} || '-' || ${classrooms.usageMetric} `.as('classroomDisplay'),
       })
       .from(lessonClassrooms)
       .innerJoin(lessons, eq(lessonClassrooms.lessonId, lessons.id))
@@ -88,7 +88,7 @@ export const lessonClassroomsRouter = router({
           lessonId: lessonClassrooms.lessonId,
           classroomId: lessonClassrooms.classroomId,
           lessonDisplay: sql<string>`${units.code} || '-' || ${lessonTypes.abbreviation} || '-' || ${disciplines.abbreviation} || '-' || ${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'  `.as('lessonDisplay'),
-          classroomDisplay: sql<string>` ${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric} `.as('classroomDisplay'),
+          classroomDisplay: sql<string>` ${buildings.number} || '_' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.capacity} || '-' || ${classrooms.usageMetric} ||`.as('classroomDisplay'),
         })
         .from(lessonClassrooms)
         .innerJoin(lessons, eq(lessonClassrooms.lessonId, lessons.id))

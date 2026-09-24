@@ -137,10 +137,8 @@ export const generateGroupsRouter = router({
     const month = now.getMonth() + 1;
     const currentYear = now.getFullYear();
     let academicYearStart: number;
-    if (month >= 9) {
+    if (month >= 8) {
       academicYearStart = currentYear;
-    } else if (month === 8) {
-      academicYearStart = currentYear - 1;
     } else {
       academicYearStart = currentYear - 1;
     }

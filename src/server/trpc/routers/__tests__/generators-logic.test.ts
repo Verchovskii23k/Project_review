@@ -325,3 +325,160 @@ describe("generateSchedule logic", () => {
     }
   });
 });
+
+describe("generateLessons — subset и maximal-units", () => {
+  let localCaller: Awaited<ReturnType<typeof createTestCaller>>;
+  let localSpecId: number;
+  let localEduId: number;
+  let localDeptId: number;
+  let profA: number, profB: number, profC: number;
+  let curWide: number, curNarrow: number;
+
+  beforeEach(async () => {
+    MockDate.set("2025-09-15T00:00:00Z");
+    // top-level beforeEach уже вызвал clearAllTestData, но мы всё равно
+    // пересоздаём среду с нуля — так тест изолирован от базового curriculum.
+    await clearAllTestData();
+
+    const instId = await createTestInstitute({ universityCode: 1 });
+    localDeptId = await createTestDepartment(instId);
+    localSpecId = await createTestSpecialty(localDeptId, { code: "09.03.99" });
+    localEduId = await createTestEducation();
+
+    profA = await createTestProfile(localSpecId, localEduId, { letterCode: "а" });
+    profB = await createTestProfile(localSpecId, localEduId, { letterCode: "б" });
+    profC = await createTestProfile(localSpecId, localEduId, { letterCode: "в" });
+
+    await db.insert(students).values([
+      { surname: "А", name: "А", admissionYear: 2023, profileId: profA, isActive: true },
+      { surname: "Б", name: "Б", admissionYear: 2023, profileId: profB, isActive: true },
+      { surname: "В", name: "В", admissionYear: 2023, profileId: profC, isActive: true },
+    ]);
+
+    await db.insert(settings).values({ key: "current_semester", value: "1" });
+
+    await db.insert(unitTypes).values([
+      { name: "ГРУППА",    maxSize: 32,  priorityLecture: 2, priorityWorkshop: 1, priorityGuidedStudy: 1, priorityLab: 2 },
+      { name: "ПОДГРУППА", maxSize: 16,  priorityLecture: 3, priorityWorkshop: 3, priorityGuidedStudy: 3, priorityLab: 1 },
+      { name: "ПОТОК",     maxSize: 128, priorityLecture: 1, priorityWorkshop: 3, priorityGuidedStudy: 3, priorityLab: 3 },
+    ]);
+
+    const [dw, dn] = await db.insert(disciplines).values([
+      { name: "Широкая", abbreviation: "ШИР", departmentId: localDeptId, isActive: true },
+      { name: "Узкая",   abbreviation: "УЗК", departmentId: localDeptId, isActive: true },
+    ]).returning({ id: disciplines.id });
+
+    const [cw] = await db.insert(curriculum).values({
+      course: 3, semester: 1, disciplineId: dw.id,
+      hoursLecture: 32, hoursGuidedStudy: 0, hoursWorkshop: 0, hoursLab: 0,
+      isActive: true,
+    }).returning({ id: curriculum.id });
+    curWide = cw.id;
+
+    const [cn] = await db.insert(curriculum).values({
+      course: 3, semester: 1, disciplineId: dn.id,
+      hoursLecture: 32, hoursGuidedStudy: 0, hoursWorkshop: 0, hoursLab: 0,
+      isActive: true,
+    }).returning({ id: curriculum.id });
+    curNarrow = cn.id;
+
+    await db.insert(curriculumProfiles).values([
+      { curriculumId: curWide,   profileId: profA, isActive: true },
+      { curriculumId: curWide,   profileId: profB, isActive: true },
+      { curriculumId: curWide,   profileId: profC, isActive: true },
+      { curriculumId: curNarrow, profileId: profA, isActive: true },
+      { curriculumId: curNarrow, profileId: profB, isActive: true },
+    ]);
+
+    const [lecture, workshop, guidedStudy, lab] = await db.insert(lessonTypes).values([
+      { name: "lecture",     abbreviation: "ЛК",   isActive: true },
+      { name: "workshop",    abbreviation: "ПР",   isActive: true },
+      { name: "guidedStudy", abbreviation: "КСР",  isActive: true },
+      { name: "lab",         abbreviation: "ЛАБ",  isActive: true },
+    ]).returning({ id: lessonTypes.id });
+
+    await db.insert(hourTypeMapping).values([
+      { planHourColumn: "hours_lecture",      priorityColumn: "priorityLecture",     lessonTypeId: lecture.id,     isActive: true },
+      { planHourColumn: "hours_workshop",     priorityColumn: "priorityWorkshop",    lessonTypeId: workshop.id,    isActive: true },
+      { planHourColumn: "hours_guided_study", priorityColumn: "priorityGuidedStudy", lessonTypeId: guidedStudy.id, isActive: true },
+      { planHourColumn: "hours_lab",          priorityColumn: "priorityLab",         lessonTypeId: lab.id,         isActive: true },
+    ]);
+
+    const [emp] = await db.insert(employees).values({
+      surname: "Преподаватель", name: "Тест", isActive: true,
+    }).returning({ id: employees.id });
+    const [ed] = await db.insert(employeesDepartments).values({
+      employeeId: emp.id, departmentId: localDeptId, isActive: true,
+    }).returning({ id: employeesDepartments.id });
+
+    for (const dId of [dw.id, dn.id]) {
+      await db.insert(disciplineTeachers).values({
+        lessonTypeId: lecture.id, disciplineId: dId,
+        teacherDepartmentId: ed.id, isActive: true,
+      });
+    }
+
+    const [bld] = await db.insert(buildings).values({ number: 1, isActive: true }).returning({ id: buildings.id });
+    await db.insert(classrooms).values([{ buildingId: bld.id, roomNumber: "101", capacity: 60, isActive: true }]);
+    await db.insert(daysOfWeek).values(["ПН","ВТ"].map(name => ({ name, isActive: true })));
+    await db.insert(pairs).values([1,2].map(number => ({ number, isActive: true })));
+    await db.insert(weeks).values([{ type: "odd", isActive: true }, { type: "even", isActive: true }]);
+
+    localCaller = await createTestCaller({ id: 1, role: "admin" });
+  });
+
+  afterEach(() => {
+    MockDate.reset();
+  });
+
+  it("subset отсекает поток с группой вне target; max оставляет только максимальный поток", async () => {
+    await localCaller.generations.generateGroups();
+    await localCaller.generations.generateUnits();
+
+    // Проверим, что generateUnits создал оба потока: 13аб (A+B) и 13абв (A+B+C)
+    const streams = await db
+      .select({ code: units.code })
+      .from(units)
+      .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
+      .where(and(
+        eq(unitTypes.name, "ПОТОК"),
+        eq(units.isActive, true),
+        isNull(units.versionId),
+      ));
+    const streamCodes = streams.map(s => s.code).sort();
+    expect(streamCodes).toEqual(["13аб", "13абв"].sort());
+
+    const result = await localCaller.generations.generateLessons();
+    expect(Number(result.lessonsCreated)).toBeGreaterThan(0);
+
+    // ─── Проверка 1: subset-фильтр ───
+    // Для curNarrow (target = {A, B}) поток 13абв отсекается — его группа C
+    // не входит в целевое множество. Остаётся ровно одна лекция с юнитом 13аб.
+    const narrowLessons = await db
+      .select({ lessonId: lessons.id, unitCode: units.code })
+      .from(lessons)
+      .innerJoin(units, eq(lessons.unitId, units.id))
+      .where(and(
+        eq(lessons.curriculumId, curNarrow),
+        eq(lessons.isActive, true),
+        isNull(lessons.versionId),
+      ));
+    expect(narrowLessons.length).toBe(1);
+    expect(narrowLessons[0].unitCode).toBe("13аб");
+
+    // ─── Проверка 2: maximal-units ───
+    // Для curWide (target = {A, B, C}) оба потока проходят subset,
+    // но 13аб вложен в 13абв. Остаётся только 13абв.
+    const wideLessons = await db
+      .select({ lessonId: lessons.id, unitCode: units.code })
+      .from(lessons)
+      .innerJoin(units, eq(lessons.unitId, units.id))
+      .where(and(
+        eq(lessons.curriculumId, curWide),
+        eq(lessons.isActive, true),
+        isNull(lessons.versionId),
+      ));
+    expect(wideLessons.length).toBe(1);
+    expect(wideLessons[0].unitCode).toBe("13абв");
+  });
+});

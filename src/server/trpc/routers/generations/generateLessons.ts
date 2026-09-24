@@ -278,9 +278,11 @@ export const generateLessonsRouter = router({
           )}, 0)`;
 
           // Все юниты, связанные с найденными группами (только активные)
+          // Все юниты, связанные с найденными группами (только активные)
           const unitRows = await ctx.db
             .select({
               id: units.id,
+              code: units.code,
               priority: prioritySql,
             })
             .from(units)
@@ -302,11 +304,62 @@ export const generateLessonsRouter = router({
             continue;
           }
 
-          // Фильтр по приоритетам
-          const priority1 = unitRows.filter((u) => u.priority === 1);
-          const priority2 = unitRows.filter((u) => u.priority === 2);
-          const priority3 = unitRows.filter((u) => u.priority === 3);
-          let unitsToUse: typeof unitRows;
+          // ─── Отдельный запрос: ВСЕ группы каждого найденного юнита ───
+          const uniqueUnitIds = [...new Set(unitRows.map(r => r.id))];
+
+          const allUnitGroups = await ctx.db
+            .select({
+              unitId: units.id,
+              studyGroupId: unitRoots.studyGroupId,
+            })
+            .from(units)
+            .innerJoin(unitRoots, eq(units.code, unitRoots.unitCode))
+            .where(
+              and(
+                inArray(units.id, uniqueUnitIds),
+                eq(units.isActive, true),
+                isNull(units.versionId),
+                eq(unitRoots.isActive, true),
+                isNull(unitRoots.versionId)
+              )
+            );
+
+          // Группируем по unitId
+          const groupsByUnitId = new Map<number, Set<number>>();
+          for (const row of allUnitGroups) {
+            if (!groupsByUnitId.has(row.unitId)) {
+              groupsByUnitId.set(row.unitId, new Set());
+            }
+            groupsByUnitId.get(row.unitId)!.add(row.studyGroupId);
+          }
+
+          // ─── Subset-фильтр ───
+          const targetGroupSet = new Set(groupIds);
+          const candidateUnits: { id: number; priority: number }[] = [];
+          const seenUnitIds = new Set<number>();
+
+          for (const row of unitRows) {
+            if (seenUnitIds.has(row.id)) continue;
+            seenUnitIds.add(row.id);
+
+            const allGroups = groupsByUnitId.get(row.id) ?? new Set();
+            const isSubset = [...allGroups].every(g => targetGroupSet.has(g));
+
+            if (isSubset) {
+              candidateUnits.push({ id: row.id, priority: row.priority });
+            }
+          }
+
+          if (candidateUnits.length === 0) {
+            problems.no_units = (problems.no_units || 0) + 1;
+            continue;
+          }
+
+          // Фильтр по приоритетам — по candidateUnits
+          const priority1 = candidateUnits.filter((u) => u.priority === 1);
+          const priority2 = candidateUnits.filter((u) => u.priority === 2);
+          const priority3 = candidateUnits.filter((u) => u.priority === 3);
+          let unitsToUse: typeof candidateUnits;
           if (priority1.length > 0) {
             unitsToUse = priority1;
           } else if (priority2.length > 0) {
@@ -318,7 +371,22 @@ export const generateLessonsRouter = router({
             continue;
           }
 
-          for (const unit of unitsToUse) {
+          const maximalUnits = unitsToUse.filter(unit => {
+            const unitGroups = groupsByUnitId.get(unit.id) ?? new Set();
+            // Есть ли другой кандидат, чьё множество групп — строгое надмножество?
+            return !unitsToUse.some(other => {
+              if (other.id === unit.id) return false;
+              const otherGroups = groupsByUnitId.get(other.id) ?? new Set();
+              if (otherGroups.size <= unitGroups.size) return false;
+              // Все группы unit должны присутствовать в other
+              for (const g of unitGroups) {
+                if (!otherGroups.has(g)) return false;
+              }
+              return true;
+            });
+          });
+
+          for (const unit of maximalUnits) {
             lessonsToInsert.push({
               curriculumId: planId,
               disciplineId,

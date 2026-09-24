@@ -26,7 +26,7 @@ export const classroomsRouter = router({
           priorityLab: classrooms.priorityLab,
           usageMetric: classrooms.usageMetric,
           isActive: classrooms.isActive,
-          display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
+          display: sql<string>`${buildings.number} || '_' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.capacity} || '-' || ${classrooms.usageMetric}`.as('display'),
         })
         .from(classrooms)
         .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
@@ -107,7 +107,7 @@ export const classroomsRouter = router({
           priorityLab: classrooms.priorityLab,
           usageMetric: classrooms.usageMetric,
           isActive: classrooms.isActive,
-          display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
+          display: sql<string>`${buildings.number} || '_' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.capacity} || '-' ||${classrooms.usageMetric}`.as('display'),
         })
         .from(classrooms)
         .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
@@ -159,7 +159,7 @@ export const classroomsRouter = router({
       priorityWorkshop: z.number().int().min(1).max(3),
       priorityGuidedStudy: z.number().int().min(1).max(3),
       priorityLab: z.number().int().min(1).max(3),
-      usageMetric: z.number().optional(),
+      usageMetric: z.coerce.number().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

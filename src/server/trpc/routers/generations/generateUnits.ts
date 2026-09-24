@@ -252,7 +252,7 @@ export const generateUnitsRouter = router({
     for (const [, { course, profileIds }] of streamMap) {
       if (profileIds.size < 2) continue;
       const profArray = Array.from(profileIds).sort((a, b) => a - b);
-      const tupleKey = profArray.join(",");
+      const tupleKey = `${course}_${profArray.join(",")}`;
       if (createdCombinations.has(tupleKey)) continue;
 
       const pData = await ctx.db
